@@ -1,6 +1,7 @@
 const { toTitleCase, validateEmail } = require("../config/function");
 const bcrypt = require("bcryptjs");
 const userModel = require("../models/users");
+const otpService = require("../services/otpService");
 const jwt = require("jsonwebtoken");
 const { JWT_SECRET } = require("../config/keys");
 
@@ -131,6 +132,44 @@ class Auth {
             error: "Invalid Mobile No or password",
           });
         }
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  async verifyOtp(req, res) {
+    const { mobileNo, otp } = req.body;
+
+    if (!mobileNo || !otp) {
+      return res.json({
+        error: "Fields must not be empty",
+      });
+    }
+
+    try {
+      const user = await userModel.findOne({ mobileNo });
+      if (!user) {
+        return res.json({ error: "User not found!" });
+      }
+
+      const result = await otpService.verifyOtp(mobileNo, otp);
+      if (result.status == "approved") {
+        const token = jwt.sign(
+          { _id: user._id, role: user.userRole },
+          JWT_SECRET
+        );
+
+        const encode = jwt.verify(token, JWT_SECRET);
+
+        return res.json({
+          token: token,
+          user: encode,
+        });
+      } else {
+        res.json({
+          error: "Error Verifying OTP",
+        });
       }
     } catch (err) {
       console.log(err);
