@@ -1,5 +1,5 @@
 import React, { Fragment, useState, useContext } from "react";
-import { loginReq } from "./fetchApi";
+import { loginReq, loginVerifyReq } from "./fetchApi";
 import { LayoutContext } from "../index";
 
 const Login = (props) => {
@@ -8,34 +8,67 @@ const Login = (props) => {
 
   const [data, setData] = useState({
     mobileNo: "",
-    password: "",
+    otp: "",
     error: false,
-    loading: true,
+    loading: false,
   });
+  const [otpSent, setOtpSent] = useState(false);
 
   const alert = (msg) => <div className="text-xs text-red-500">{msg}</div>;
 
-  const formSubmit = async () => {
+  const handleSignin = async () => {
     setData({ ...data, loading: true });
     try {
       let responseData = await loginReq({
         mobileNo: data.mobileNo,
-        password: data.password,
       });
       if (responseData.error) {
         setData({
           ...data,
           loading: false,
           error: responseData.error,
-          password: "",
+        });
+      } else if (responseData.status) {
+        alert("OTP has been sent");
+        setData({ ...data, loading: false });
+        setOtpSent(true);
+      }
+    } catch (error) {
+      console.log(error);
+      setData({
+        ...data,
+        loading: false,
+        error: { mobileNo: "An error occured" },
+      });
+    }
+  };
+
+  const handleSigninVerify = async () => {
+    setData({ ...data, loading: true });
+    try {
+      let responseData = await loginVerifyReq({
+        mobileNo: data.mobileNo,
+        otp: data.otp,
+      });
+
+      if (responseData.error) {
+        setData({
+          ...data,
+          loading: false,
+          error: responseData.error,
         });
       } else if (responseData.token) {
-        setData({ mobileNo: "", password: "", loading: false, error: false });
+        setData({ mobileNo: data.mobileNo, loading: false, error: false });
         localStorage.setItem("jwt", JSON.stringify(responseData));
         window.location.href = "/";
       }
     } catch (error) {
       console.log(error);
+      setData({
+        ...data,
+        loading: false,
+        error: "An error occured",
+      });
     }
   };
 
@@ -50,65 +83,65 @@ const Login = (props) => {
         ""
       )}
       <form className="space-y-4">
-        <div className="flex flex-col">
-          <label htmlFor="name">
-            Mobile Number
-            <span className="text-sm text-gray-600 ml-1">*</span>
-          </label>
-          <input
-            onChange={(e) => {
-              setData({ ...data, mobileNo: e.target.value, error: false });
-              layoutDispatch({ type: "loginSignupError", payload: false });
-            }}
-            value={data.mobileNo}
-            type="number"
-            id="mobileNo"
-            className={`${
-              !data.error ? "" : "border-red-500"
-            } px-4 py-2 focus:outline-none border`}
-          />
-          {!data.error ? "" : alert(data.error)}
-        </div>
-        <div className="flex flex-col">
-          <label htmlFor="password">
-            Password<span className="text-sm text-gray-600 ml-1">*</span>
-          </label>
-          <input
-            onChange={(e) => {
-              setData({ ...data, password: e.target.value, error: false });
-              layoutDispatch({ type: "loginSignupError", payload: false });
-            }}
-            value={data.password}
-            type="password"
-            id="password"
-            className={`${
-              !data.error ? "" : "border-red-500"
-            } px-4 py-2 focus:outline-none border`}
-          />
-          {!data.error ? "" : alert(data.error)}
-        </div>
-        <div className="flex flex-col space-y-2 md:flex-row md:justify-between md:items-center">
-          <div>
-            <input
-              type="checkbox"
-              id="rememberMe"
-              className="px-4 py-2 focus:outline-none border mr-1"
-            />
-            <label htmlFor="rememberMe">
-              Remember me<span className="text-sm text-gray-600">*</span>
+        {otpSent ? (
+          <div className="flex flex-col">
+            <label htmlFor="name">
+              Enter OTP
+              <span className="text-sm text-gray-600 ml-1">*</span>
             </label>
+            <input
+              onChange={(e) => {
+                setData({ ...data, otp: e.target.value, error: false });
+                layoutDispatch({ type: "loginSignupError", payload: false });
+              }}
+              value={data.otp}
+              type="number"
+              id="otp"
+              className={`${
+                !data.error ? "" : "border-red-500"
+              } px-4 py-2 focus:outline-none border`}
+            />
+            {!data.error ? "" : alert(data.error)}
           </div>
-          <a className="block text-gray-600" href="/">
-            Lost your password?
-          </a>
-        </div>
-        <div
-          onClick={(e) => formSubmit()}
-          style={{ background: "#303031" }}
-          className="font-medium px-4 py-2 text-white text-center cursor-pointer"
-        >
-          Login
-        </div>
+        ) : (
+          <div className="flex flex-col">
+            <label htmlFor="name">
+              Mobile Number
+              <span className="text-sm text-gray-600 ml-1">*</span>
+            </label>
+            <input
+              onChange={(e) => {
+                setData({ ...data, mobileNo: e.target.value, error: false });
+                layoutDispatch({ type: "loginSignupError", payload: false });
+              }}
+              value={data.mobileNo}
+              type="number"
+              id="mobileNo"
+              className={`${
+                !data.error ? "" : "border-red-500"
+              } px-4 py-2 focus:outline-none border`}
+            />
+            {!data.error ? "" : alert(data.error)}
+          </div>
+        )}
+
+        {otpSent ? (
+          <div
+            onClick={(e) => handleSigninVerify()}
+            style={{ background: "#303031" }}
+            className="font-medium px-4 py-2 text-white text-center cursor-pointer"
+          >
+            {data.loading ? "loading..." : "Login"}
+          </div>
+        ) : (
+          <div
+            onClick={(e) => handleSignin()}
+            style={{ background: "#303031" }}
+            className="font-medium px-4 py-2 text-white text-center cursor-pointer"
+          >
+            {data.loading ? "loading..." : "Send OTP"}
+          </div>
+        )}
       </form>
     </Fragment>
   );

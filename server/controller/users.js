@@ -7,7 +7,7 @@ class User {
       let Users = await userModel
         .find({})
         .populate("allProduct.id", "pName pImages pPrice")
-        .populate("user", "name email")
+        .populate("user", "name mobileNo")
         .sort({ _id: -1 });
       if (Users) {
         return res.json({ Users });
@@ -25,7 +25,7 @@ class User {
       try {
         let User = await userModel
           .findById(uId)
-          .select("name email phoneNumber userImage updatedAt createdAt");
+          .select("name mobileNo userImage updatedAt createdAt");
         if (User) {
           return res.json({ User });
         }

@@ -1,7 +1,7 @@
-const { toTitleCase, validateEmail } = require("../config/function");
+const { toTitleCase, validateMobileNo } = require("../config/function");
 const bcrypt = require("bcryptjs");
 const userModel = require("../models/users");
-const otpService = require("../services/otpService");
+const { sendOtp, verifyOtp } = require("../services/otpService");
 const jwt = require("jsonwebtoken");
 const { JWT_SECRET } = require("../config/keys");
 
@@ -25,60 +25,71 @@ class Auth {
     }
   }
 
-  /* User Registration/Signup controller  */
-  async postSignup(req, res) {
-    let { name, email, password, cPassword } = req.body;
+  async sendSignupOtp(req, res) {
+    let { mobileNo } = req.body;
     let error = {};
-    if (!name || !email || !password || !cPassword) {
+    if (!mobileNo) {
+      error = {
+        mobileNo: "Field must not be empty",
+      };
+      return res.json({ error });
+    }
+
+    if (validateMobileNo(mobileNo)) {
+      console.log("sending otp");
+      const otpRes = await sendOtp(mobileNo);
+      console.log("otp sent");
+      return res.json(otpRes);
+    } else {
+      error = {
+        mobileNo: "Mobile No is not valid",
+      };
+      return res.json({ error });
+    }
+  }
+
+  async verifySignupOtp(req, res) {
+    let { name, mobileNo, otp } = req.body;
+    let error = {};
+    if (!name || !mobileNo || !otp) {
       error = {
         ...error,
-        name: "Filed must not be empty",
-        email: "Filed must not be empty",
-        password: "Filed must not be empty",
-        cPassword: "Filed must not be empty",
+        name: "Field must not be empty",
+        mobileNo: "Field must not be empty",
+        otp: "Field must not be empty",
       };
       return res.json({ error });
     }
     if (name.length < 3 || name.length > 25) {
-      error = { ...error, name: "Name must be 3-25 charecter" };
+      error = { ...error, name: "Name must be 3-25 character" };
       return res.json({ error });
     } else {
-      if (validateEmail(email)) {
+      if (validateMobileNo(mobileNo)) {
         name = toTitleCase(name);
-        if ((password.length > 255) | (password.length < 8)) {
-          error = {
-            ...error,
-            password: "Password must be 8 charecter",
-            name: "",
-            email: "",
-          };
-          return res.json({ error });
-        } else {
-          // If Email & Number exists in Database then:
+        // Verify OTP
+        const otpRes = await verifyOtp(mobileNo, otp);
+        if (otpRes.status == "approved") {
+          // If Mobile No & Number exists in Database then:
           try {
-            password = bcrypt.hashSync(password, 10);
-            const data = await userModel.findOne({ email: email });
+            const data = await userModel.findOne({ mobileNo: mobileNo });
             if (data) {
               error = {
                 ...error,
-                password: "",
                 name: "",
-                email: "Email already exists",
+                mobileNo: "Mobile No already exists",
               };
               return res.json({ error });
             } else {
               let newUser = new userModel({
                 name,
-                email,
-                password,
-                // ========= Here role 1 for admin signup role 0 for customer signup =========
-                userRole: 0, // Field Name change to userRole from role
+                mobileNo,
+                userRole: 0,
               });
               newUser
                 .save()
                 .then((data) => {
                   return res.json({
-                    success: "Account create successfully. Please login",
+                    success: "Account created successfully. Please login",
                   });
                 })
                 .catch((err) => {
@@ -88,57 +99,49 @@ class Auth {
           } catch (err) {
             console.log(err);
           }
+        } else {
+          error = {
+            ...error,
+            name: "",
+            otp: "Error in otp verification",
+          };
+          return res.json({ error });
         }
       } else {
         error = {
           ...error,
-          password: "",
           name: "",
-          email: "Email is not valid",
+          mobileNo: "Mobile No is not valid",
         };
         return res.json({ error });
       }
     }
   }
 
-  /* User Login/Signin controller  */
-  async postSignin(req, res) {
-    let { mobileNo, password } = req.body;
-    if (!mobileNo || !password) {
+  async sendSignInOtp(req, res) {
+    const { mobileNo } = req.body;
+    if (!mobileNo) {
       return res.json({
-        error: "Fields must not be empty",
+        error: "Mobile no not present",
       });
     }
     try {
-      const data = await userModel.findOne({ mobileNo: mobileNo });
+      const data = await userModel.findOne({ mobileNo });
       if (!data) {
         return res.json({
-          error: "Invalid Mobile No or password",
+          error: "Invalid Mobile No",
         });
       } else {
-        const login = await bcrypt.compare(password, data.password);
-        if (login) {
-          const token = jwt.sign(
-            { _id: data._id, role: data.userRole },
-            JWT_SECRET
-          );
-          const encode = jwt.verify(token, JWT_SECRET);
-          return res.json({
-            token: token,
-            user: encode,
-          });
-        } else {
-          return res.json({
-            error: "Invalid Mobile No or password",
-          });
-        }
+        const otpRes = await sendOtp(mobileNo);
+        return res.json(otpRes);
       }
     } catch (err) {
       console.log(err);
+      return res.send({ message: "An error occured!" });
     }
   }
 
-  async verifyOtp(req, res) {
+  async verifySignInOtp(req, res) {
     const { mobileNo, otp } = req.body;
 
     if (!mobileNo || !otp) {
@@ -153,8 +156,9 @@ class Auth {
         return res.json({ error: "User not found!" });
       }
 
-      const result = await otpService.verifyOtp(mobileNo, otp);
-      if (result.status == "approved") {
+      const otpRes = await verifyOtp(mobileNo, otp);
+      console.log(otpRes);
+      if (otpRes.status == "approved") {
         const token = jwt.sign(
           { _id: user._id, role: user.userRole },
           JWT_SECRET
@@ -167,12 +171,15 @@ class Auth {
           user: encode,
         });
       } else {
-        res.json({
-          error: "Error Verifying OTP",
+        return res.json({
+          error: "Error verifying OTP",
         });
       }
     } catch (err) {
       console.log(err);
+      return res.json({
+        message: "Error verifying OTP",
+      });
     }
   }
 }

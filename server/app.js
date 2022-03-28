@@ -49,10 +49,16 @@ mongoose
   )
   .catch((err) => console.log("Database Not Connected !!!"));
 
+const corsOptions = {
+  origin: "*",
+  credentials: true, //access-control-allow-credentials:true
+  optionSuccessStatus: 200,
+};
+
 // Middleware
 app.use(morgan("dev"));
 app.use(cookieParser());
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.static("public"));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());

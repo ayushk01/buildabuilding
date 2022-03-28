@@ -4,9 +4,10 @@ const authController = require("../controller/auth");
 const { loginCheck, isAuth, isAdmin } = require("../middleware/auth");
 
 router.post("/isadmin", authController.isAdmin);
-router.post("/signup", authController.postSignup);
-router.post("/signin", authController.postSignin);
+router.post("/signup", authController.sendSignupOtp);
+router.post("/verify-signup", authController.verifySignupOtp);
+router.post("/signin", authController.sendSignInOtp);
+router.post("/verify-signin", authController.verifySignInOtp);
 router.post("/user", loginCheck, isAuth, isAdmin, authController.allUser);
-router.post("/verify-otp", authController.verifyOtp);
 
 module.exports = router;

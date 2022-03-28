@@ -15,6 +15,14 @@ exports.validateEmail = function (mail) {
   }
 };
 
+exports.validateMobileNo = function (mobileNo) {
+  if (/^\d{10}$/.test(mobileNo)) {
+    return true;
+  } else {
+    return false;
+  }
+};
+
 exports.emailCheckInDatabase = async function (email) {
   let user = await userModel.findOne({ email: email });
   user.exec((err, data) => {
